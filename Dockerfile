@@ -1,4 +1,4 @@
- Use the official lightweight Python image.
+# Use the official lightweight Python image.
 FROM python:3.10-slim
 
 # Set environment variables
