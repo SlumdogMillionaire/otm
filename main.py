@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
+from google.cloud import bigquery
 from google.auth import default
 from google.auth.transport.requests import Request
-import requests
 import xml.etree.ElementTree as ET
 import os
 
@@ -9,59 +9,46 @@ app = Flask(__name__)
 
 @app.route("/", methods=["POST"])
 def handle_otm_data():
-    content_type = request.content_type
-    print("Received Content-Type:", content_type)
-    
-    if content_type == "application/json":
-        otm_payload = request.get_json()
-        user_message = otm_payload.get("message", "Hello from JSON!")
-    
-    elif content_type == "text/xml":
-        try:
-            xml_data = request.data.decode("utf-8")
-            root = ET.fromstring(xml_data)
+    try:
+        # Step 1: Get raw XML data from OTM
+        xml_data = request.data
+        if not xml_data:
+            return jsonify({"error": "No XML data received"}), 400
 
-            # Adjust this depending on actual structure
-            message_elem = root.find(".//message")
-            user_message = message_elem.text if message_elem is not None else "Hello from XML!"
-        except Exception as e:
-            return jsonify({"error": "Failed to parse XML", "details": str(e)}), 400
-    
-    else:
-        return jsonify({"error": "Unsupported Content-Type", "details": content_type}), 415
+        # Step 2: Parse XML
+        root = ET.fromstring(xml_data)
 
-    # Get Google Cloud access token
-    credentials, _ = default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    credentials.refresh(Request())
-    access_token = credentials.token
+        # Example: Extract fields from XML (adjust paths based on your XML schema)
+        invoice_number = root.findtext(".//InvoiceNumber") or "Unknown"
+        amount = root.findtext(".//Amount") or "0.0"
 
-    # Vertex AI endpoint
-    url = "https://us-central1-aiplatform.googleapis.com/v1/projects/utility-grin-433905-t2/locations/us-central1/publishers/google/models/chat-bison:predict"
-
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
-
-    body = {
-        "instances": [{
-            "messages": [
-                {"author": "user", "content": user_message}
-            ]
-        }],
-        "parameters": {
-            "temperature": 0.2,
-            "maxOutputTokens": 256,
-            "topP": 0.8,
-            "topK": 40
+        # Step 3: Prepare data row for BigQuery
+        row = {
+            "invoice_number": invoice_number,
+            "amount": float(amount)
         }
-    }
 
-    response = requests.post(url, headers=headers, json=body)
-    return jsonify(response.json())
+        # Step 4: Create BigQuery client using correct project
+        client = bigquery.Client(project="utility-grin-433905-t2")
+
+        # Fully-qualified BigQuery table ID (change to your actual table)
+        table_id = "utility-grin-433905-t2.otm_data.invoices"
+
+        # Step 5: Insert data into BigQuery
+        errors = client.insert_rows_json(table_id, [row])
+
+        if errors:
+            return jsonify({"status": "error", "details": errors}), 500
+        else:
+            return jsonify({"status": "success", "inserted": row}), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 if __name__ == "__main__":
-    print("Starting app")
+    print("Starting Flask app...")
     port = int(os.environ.get("PORT", 8080))
-    print("Listening on port", port)
+    print(f"Listening on port {port}")
     app.run(host="0.0.0.0", port=port)
+
