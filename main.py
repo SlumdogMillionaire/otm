@@ -3,7 +3,7 @@ from google.auth import default
 from google.auth.transport.requests import Request
 import requests
 
-app = Flask(_name_)
+app = Flask(__name__)
 
 @app.route("/", methods=["POST"])
 def handle_otm_data():
