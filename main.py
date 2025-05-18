@@ -2,21 +2,40 @@ from flask import Flask, request, jsonify
 from google.auth import default
 from google.auth.transport.requests import Request
 import requests
+import xml.etree.ElementTree as ET
+import os
 
 app = Flask(__name__)
 
 @app.route("/", methods=["POST"])
 def handle_otm_data():
-    # Get the JSON payload from OTM or another external system
-    otm_payload = request.get_json()
-    user_message = otm_payload.get("message", "Hello!")
+    content_type = request.content_type
+    print("Received Content-Type:", content_type)
+    
+    if content_type == "application/json":
+        otm_payload = request.get_json()
+        user_message = otm_payload.get("message", "Hello from JSON!")
+    
+    elif content_type == "text/xml":
+        try:
+            xml_data = request.data.decode("utf-8")
+            root = ET.fromstring(xml_data)
 
-    # Get a valid Google Cloud access token
+            # Adjust this depending on actual structure
+            message_elem = root.find(".//message")
+            user_message = message_elem.text if message_elem is not None else "Hello from XML!"
+        except Exception as e:
+            return jsonify({"error": "Failed to parse XML", "details": str(e)}), 400
+    
+    else:
+        return jsonify({"error": "Unsupported Content-Type", "details": content_type}), 415
+
+    # Get Google Cloud access token
     credentials, _ = default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
     credentials.refresh(Request())
     access_token = credentials.token
 
-    # Set the Vertex AI chat-bison endpoint
+    # Vertex AI endpoint
     url = "https://us-central1-aiplatform.googleapis.com/v1/projects/utility-grin-433905-t2/locations/us-central1/publishers/google/models/chat-bison:predict"
 
     headers = {
@@ -24,7 +43,6 @@ def handle_otm_data():
         "Content-Type": "application/json"
     }
 
-    # Create the request body for the chat model
     body = {
         "instances": [{
             "messages": [
@@ -39,11 +57,11 @@ def handle_otm_data():
         }
     }
 
-    # Make the request to Vertex AI
     response = requests.post(url, headers=headers, json=body)
-
-    # Return the Vertex AI response
     return jsonify(response.json())
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    print("Starting app")
+    port = int(os.environ.get("PORT", 8080))
+    print("Listening on port", port)
+    app.run(host="0.0.0.0", port=port)
