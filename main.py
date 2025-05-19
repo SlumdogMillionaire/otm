@@ -20,10 +20,14 @@ def handle_otm_data():
 
     elif content_type == "text/xml":
         try:
+            print("Reading Content")
             xml_data = request.data.decode("utf-8")
             root = ET.fromstring(xml_data)
             message_elem = root.find(".//message")
+            print("Reading Message Element ", message_elem)
+            
             user_message = message_elem.text if message_elem is not None else "Hello from XML!"
+            print("User Message", user_message)
         except Exception as e:
             return jsonify({"error": "Failed to parse XML", "details": str(e)}), 400
     else:
@@ -32,11 +36,13 @@ def handle_otm_data():
     try:
         # Initialize BigQuery client with correct project ID
         client = bigquery.Client(project="utility-grin-433905-t2")
+        print("Cleint name is ", client)
 
         # Prepare table reference
         dataset_id = "utility-grin-433905-t2.fleet_maintenance_forecasting"         # 🔁 Replace this
         table_id = "utility-grin-433905-t2.fleet_maintenance_forecasting.invoice_status"             # 🔁 Replace this
         table_ref = client.dataset(dataset_id).table(table_id)
+        print("Table reference is", table_ref)
 
         # Define the row to insert
         rows_to_insert = [{"message": user_message}]
