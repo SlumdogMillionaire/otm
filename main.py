@@ -1,7 +1,10 @@
 from flask import Flask, request, jsonify
 from google.cloud import bigquery
+from google.auth import default
+from google.auth.transport.requests import Request
 import xml.etree.ElementTree as ET
 import os
+import requests
 
 app = Flask(__name__)
 
@@ -50,6 +53,8 @@ def handle_otm_data():
         return jsonify({"error": "Exception during BigQuery insert", "details": str(e)}), 500
 
 if __name__ == "__main__":
+    print("Starting Flask app...")
     port = int(os.environ.get("PORT", 8080))
+    print("Listening on port:", port)
     app.run(host="0.0.0.0", port=port)
-
+    
