@@ -1,7 +1,5 @@
 from flask import Flask, request, jsonify
-from google.auth import default
-from google.auth.transport.requests import Request
-import requests
+from google.cloud import bigquery
 import xml.etree.ElementTree as ET
 import os
 
@@ -11,57 +9,47 @@ app = Flask(__name__)
 def handle_otm_data():
     content_type = request.content_type
     print("Received Content-Type:", content_type)
-    
+
+    # Parse message based on content type
     if content_type == "application/json":
         otm_payload = request.get_json()
         user_message = otm_payload.get("message", "Hello from JSON!")
-    
+
     elif content_type == "text/xml":
         try:
             xml_data = request.data.decode("utf-8")
             root = ET.fromstring(xml_data)
-
-            # Adjust this depending on actual structure
             message_elem = root.find(".//message")
             user_message = message_elem.text if message_elem is not None else "Hello from XML!"
         except Exception as e:
             return jsonify({"error": "Failed to parse XML", "details": str(e)}), 400
-    
     else:
         return jsonify({"error": "Unsupported Content-Type", "details": content_type}), 415
 
-    # Get Google Cloud access token
-    credentials, _ = default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
-    credentials.refresh(Request())
-    access_token = credentials.token
+    try:
+        # Initialize BigQuery client with correct project ID
+        client = bigquery.Client(project="utility-grin-433905-t2")
 
-    # Vertex AI endpoint
-    url = "https://us-central1-aiplatform.googleapis.com/v1/projects/utility-grin-433905-t2/locations/us-central1/publishers/google/models/chat-bison:predict"
+        # Prepare table reference
+        dataset_id = "utility-grin-433905-t2.fleet_maintenance_forecasting"         # 🔁 Replace this
+        table_id = "utility-grin-433905-t2.fleet_maintenance_forecasting.invoice_status"             # 🔁 Replace this
+        table_ref = client.dataset(dataset_id).table(table_id)
 
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
-    }
+        # Define the row to insert
+        rows_to_insert = [{"message": user_message}]
 
-    body = {
-        "instances": [{
-            "messages": [
-                {"author": "user", "content": user_message}
-            ]
-        }],
-        "parameters": {
-            "temperature": 0.2,
-            "maxOutputTokens": 256,
-            "topP": 0.8,
-            "topK": 40
-        }
-    }
+        # Insert the row
+        errors = client.insert_rows_json(table_ref, rows_to_insert)
 
-    response = requests.post(url, headers=headers, json=body)
-    return jsonify(response.json())
+        if errors:
+            return jsonify({"error": "Failed to insert into BigQuery", "details": errors}), 500
+        else:
+            return jsonify({"status": "success", "inserted": rows_to_insert})
+
+    except Exception as e:
+        return jsonify({"error": "Exception during BigQuery insert", "details": str(e)}), 500
 
 if __name__ == "__main__":
-    print("Starting app")
     port = int(os.environ.get("PORT", 8080))
-    print("Listening on port", port)
     app.run(host="0.0.0.0", port=port)
+
