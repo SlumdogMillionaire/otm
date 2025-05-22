@@ -49,7 +49,7 @@ def handle_otm_data():
 
         # Initialize BigQuery client
         client = bigquery.Client(project="utility-grin-433905-t2")
-        table_id = "utility-grin-433905-t2.fleet_maintenance_forecasting.invoice_status"
+        table_id = "utility-grin-433905-t2.fleet_maintenance_forecasting.invoice"
         print("BigQuery table:", table_id)
 
         # Insert into BigQuery
