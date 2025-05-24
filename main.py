@@ -10,22 +10,23 @@ def extract_invoice_fields(xml_data):
         root = ET.fromstring(xml_data)
         ns = {'otm': 'http://xmlns.oracle.com/apps/otm/transmission/v6.4'}
 
-        # Extract invoice_id
-        invoice_id_node = root.find('.//otm:InvoiceGid/otm:Gid/otm:Xid', ns)
-        invoice_id = invoice_id_node.text if invoice_id_node is not None else None
+        invoice_id = root.findtext('.//otm:InvoiceGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
+        invoice_num = root.findtext('.//otm:InvoiceNum', default=None, namespaces=ns)
+        domain_name = root.findtext('.//otm:InvoiceGid/otm:Gid/otm:DomainName', default=None, namespaces=ns)
 
-        # Extract domain_name
-        domain_name_node = root.find('.//otm:InvoiceGid/otm:Gid/otm:DomainName', ns)
-        domain_name = domain_name_node.text if domain_name_node is not None else None
-
-        # Extract invoice_num
-        invoice_num_node = root.find('.//otm:InvoiceNum', ns)
-        invoice_num = invoice_num_node.text if invoice_num_node is not None else None
+        shipment_gid = root.findtext('.//otm:ShipmentGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
+        status_group_gid = root.findtext('.//otm:Status/otm:StatusGroupGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
+        status_code_gid = root.findtext('.//otm:Status/otm:StatusCodeGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
+        reason_code_gid = root.findtext('.//otm:Status/otm:ReasonCodeGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
 
         return {
             "invoice_id": invoice_id,
             "invoice_num": invoice_num,
-            "domain_name": domain_name
+            "domain_name": domain_name,
+            "shipment_gid": shipment_gid,
+            "status_group_gid": status_group_gid,
+            "status_code_gid": status_code_gid,
+            "reason_code_gid": reason_code_gid
         }
     except Exception as e:
         print("XML parsing error:", str(e))
@@ -47,12 +48,10 @@ def handle_otm_data():
         if not invoice_data or not invoice_data["invoice_id"]:
             return jsonify({"error": "Required invoice fields missing"}), 400
 
-        # Initialize BigQuery client
         client = bigquery.Client(project="utility-grin-433905-t2")
         table_id = "utility-grin-433905-t2.fleet_maintenance_forecasting.invoice"
         print("BigQuery table:", table_id)
 
-        # Insert into BigQuery
         errors = client.insert_rows_json(table_id, [invoice_data])
 
         if errors:
