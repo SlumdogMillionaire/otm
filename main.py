@@ -19,6 +19,9 @@ def extract_invoice_fields(xml_data):
         status_code_gid = root.findtext('.//otm:Status/otm:StatusCodeGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
         reason_code_gid = root.findtext('.//otm:Status/otm:ReasonCodeGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
 
+        service_provider_domain = root.findtext('.//otm:ServiceProviderGid/otm:Gid/otm:DomainName', default=None, namespaces=ns)
+        service_provider_xid = root.findtext('.//otm:ServiceProviderGid/otm:Gid/otm:Xid', default=None, namespaces=ns)
+
         return {
             "invoice_id": invoice_id,
             "invoice_num": invoice_num,
@@ -26,7 +29,9 @@ def extract_invoice_fields(xml_data):
             "shipment_gid": shipment_gid,
             "status_group_gid": status_group_gid,
             "status_code_gid": status_code_gid,
-            "reason_code_gid": reason_code_gid
+            "reason_code_gid": reason_code_gid,
+            "service_provider_domain": service_provider_domain,
+            "service_provider_xid": service_provider_xid
         }
     except Exception as e:
         print("XML parsing error:", str(e))
@@ -69,4 +74,3 @@ if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     print("Listening on port:", port)
     app.run(host="0.0.0.0", port=port)
-
